@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnidl"
+dynamic = ["version"]
+description = "萬用影片下載器：yt-dlp 智慧解析 + FFmpeg 無損合併 + aria2c 極速下載，附網頁嗅探與偽裝片段修復"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "yt-dlp[default,curl-cffi]>=2025.1.1",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+desktop = ["pywebview>=5.0"]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.5"]
+
+[project.scripts]
+omnidl = "omnidl.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "omnidl.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["omnidl*"]
+
+[tool.setuptools.package-data]
+omnidl = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501", "B008"]

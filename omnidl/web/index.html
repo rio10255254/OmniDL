@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmniDL</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script>window.OMNIDL_TOKEN = '__OMNIDL_TOKEN__';</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <img src="/static/icon.svg" alt="" width="20" height="20">
+    <span class="name">OmniDL</span>
+    <span class="ver">__OMNIDL_VERSION__</span>
+  </div>
+  <nav class="seg" role="tablist">
+    <button class="seg-btn active" data-tab="download" role="tab">下載<span class="badge-n" id="tab-count" hidden></span></button>
+    <button class="seg-btn" data-tab="history" role="tab">歷史</button>
+    <button class="seg-btn" data-tab="settings" role="tab">設定</button>
+    <button class="seg-btn" data-tab="doctor" role="tab">環境<span class="alert-dot" id="doctor-dot" hidden></span></button>
+  </nav>
+  <div class="top-actions">
+    <button class="ibtn" id="btn-open-folder" data-tip="開啟下載資料夾"><i data-icon="folder"></i></button>
+    <button class="ibtn" id="btn-theme" data-tip="切換深色 / 淺色"><i data-icon="moon"></i></button>
+    <button class="ibtn danger" id="btn-quit" data-tip="結束程式"><i data-icon="power"></i></button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 下載 ================= -->
+  <section id="tab-download" class="panel active">
+    <div class="composer">
+      <textarea id="url-input" rows="1" spellcheck="false"
+        placeholder="貼上影片網址，可一次多個（Ctrl + Enter 直接下載）"></textarea>
+      <div class="composer-bar">
+        <button class="tbtn" id="btn-paste"><i data-icon="clipboard"></i>貼上</button>
+        <div class="select-pill">
+          <i data-icon="sliders"></i>
+          <select id="quick-quality" aria-label="畫質">
+            <option value="best">最高畫質</option>
+            <option value="2160">2160p</option>
+            <option value="1440">1440p</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+            <option value="audio">僅音訊</option>
+          </select>
+        </div>
+        <span class="hint-inline" id="url-hint"></span>
+        <span class="grow"></span>
+        <button class="tbtn" id="btn-analyze"><i data-icon="search"></i>解析</button>
+        <button class="pbtn" id="btn-add"><i data-icon="download"></i>下載</button>
+      </div>
+    </div>
+
+    <div class="sheet analysis" id="analysis" hidden>
+      <div class="an-head">
+        <div class="an-thumb" id="an-thumb-wrap"><img id="an-thumb" alt=""></div>
+        <div class="an-meta">
+          <div class="an-title" id="an-title"></div>
+          <div class="an-sub" id="an-sub"></div>
+        </div>
+        <button class="ibtn sm" id="an-close" data-tip="關閉"><i data-icon="x"></i></button>
+      </div>
+      <div id="an-body"></div>
+      <div class="sheet-foot">
+        <button class="tbtn" id="an-sniff"><i data-icon="scan"></i>嗅探結果</button>
+        <span class="grow"></span>
+        <span class="muted xs" id="an-pick"></span>
+        <button class="pbtn" id="an-download"><i data-icon="download"></i>下載</button>
+      </div>
+      <div id="sniff-box" hidden></div>
+    </div>
+
+    <div class="section-head">
+      <div class="section-title">佇列 <span class="muted" id="queue-count"></span></div>
+      <div class="section-actions">
+        <button class="ibtn sm" data-bulk="pause_all" data-tip="全部暫停"><i data-icon="pause"></i></button>
+        <button class="ibtn sm" data-bulk="resume_all" data-tip="全部繼續"><i data-icon="play"></i></button>
+        <button class="ibtn sm" data-bulk="clear_done" data-tip="清除已完成"><i data-icon="listx"></i></button>
+      </div>
+    </div>
+    <div class="list" id="queue"></div>
+    <div class="empty" id="queue-empty">
+      <i data-icon="download"></i>
+      <div>佇列是空的</div>
+      <div class="muted xs">「解析」可先查看標題與所有畫質；「下載」會自動挑選最佳畫質。</div>
+    </div>
+  </section>
+
+  <!-- ================= 歷史 ================= -->
+  <section id="tab-history" class="panel">
+    <div class="section-head">
+      <div class="search"><i data-icon="search"></i><input type="search" id="history-search" placeholder="搜尋標題或網址"></div>
+      <div class="section-actions">
+        <button class="tbtn danger" id="btn-clear-history"><i data-icon="trash"></i>清除紀錄</button>
+      </div>
+    </div>
+    <div class="list" id="history"></div>
+  </section>
+
+  <!-- ================= 設定 ================= -->
+  <section id="tab-settings" class="panel">
+    <form id="settings-form" autocomplete="off">
+      <div class="group-title">下載</div>
+      <div class="group">
+        <label class="field"><span>下載資料夾</span><input name="download_dir" type="text" class="mono"></label>
+        <label class="field"><span>檔名樣板<small>yt-dlp 輸出樣板 · <a href="https://github.com/yt-dlp/yt-dlp#output-template" target="_blank" rel="noreferrer">語法說明</a></small></span>
+          <input name="output_template" type="text" class="mono"></label>
+        <label class="field"><span>預設畫質</span>
+          <select name="quality">
+            <option value="best">最高畫質</option><option value="2160">2160p</option><option value="1440">1440p</option>
+            <option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option>
+            <option value="360">360p</option><option value="audio">僅音訊</option>
+          </select></label>
+        <label class="field"><span>輸出容器</span>
+          <select name="container"><option value="mp4">MP4（相容性最佳）</option><option value="mkv">MKV</option><option value="auto">保留原始格式</option></select></label>
+        <label class="field"><span>音訊格式</span>
+          <select name="audio_format"><option>mp3</option><option>m4a</option><option>opus</option><option>flac</option><option>wav</option><option value="best">原始</option></select></label>
+        <label class="field sw"><span>下載整個播放清單<small>以清單名稱建立子資料夾</small></span><input type="checkbox" name="playlist"></label>
+        <label class="field sw"><span>嵌入縮圖</span><input type="checkbox" name="embed_thumbnail"></label>
+        <label class="field sw"><span>嵌入標題與章節</span><input type="checkbox" name="embed_metadata"></label>
+        <label class="field sw"><span>略過已下載過的影片</span><input type="checkbox" name="download_archive"></label>
+        <label class="field sw"><span>檔名只使用英數字</span><input type="checkbox" name="restrict_filenames"></label>
+      </div>
+
+      <div class="group-title">字幕</div>
+      <div class="group">
+        <label class="field sw"><span>下載字幕</span><input type="checkbox" name="write_subs"></label>
+        <label class="field sw"><span>嵌入影片檔</span><input type="checkbox" name="embed_subs"></label>
+        <label class="field"><span>語言</span><input name="sub_langs" type="text" class="mono"></label>
+      </div>
+
+      <div class="group-title">速度</div>
+      <div class="group">
+        <label class="field"><span>片段並行數<small>yt-dlp -N，HLS 建議 8–16</small></span><input name="concurrent_fragments" type="number" min="1" max="64" class="num"></label>
+        <label class="field"><span>同時下載工作數</span><input name="max_concurrent_jobs" type="number" min="1" max="10" class="num"></label>
+        <label class="field"><span>aria2c 外掛<small>大型直連檔可榨乾頻寬</small></span>
+          <select name="aria2c">
+            <option value="off">關閉</option>
+            <option value="http">僅一般直連檔</option>
+            <option value="all">全部（含 HLS / DASH）</option>
+          </select></label>
+        <label class="field"><span>aria2c 連線數</span><input name="aria2c_connections" type="number" min="1" max="16" class="num"></label>
+        <label class="field"><span>限速<small>例如 5M，空白為不限</small></span><input name="rate_limit" type="text" class="num" placeholder="不限"></label>
+        <label class="field"><span>重試次數</span><input name="retries" type="number" min="0" max="100" class="num"></label>
+      </div>
+
+      <div class="group-title">解析與防護</div>
+      <div class="group">
+        <label class="field"><span>網頁嗅探</span>
+          <select name="sniff_mode">
+            <option value="auto">自動（yt-dlp 失敗時）</option>
+            <option value="always">一律優先</option>
+            <option value="off">關閉</option>
+          </select></label>
+        <label class="field sw"><span>修復偽裝片段<small>剝除 .jpeg / .png 假檔頭</small></span><input type="checkbox" name="repair_disguised"></label>
+        <label class="field sw"><span>自動偽裝瀏覽器指紋<small>遇到 403 / Cloudflare 時</small></span><input type="checkbox" name="auto_impersonate"></label>
+        <label class="field"><span>瀏覽器 Cookies<small>會員、年齡限制影片</small></span>
+          <select name="cookies_from_browser">
+            <option value="">不使用</option><option>chrome</option><option>edge</option><option>firefox</option>
+            <option>brave</option><option>opera</option><option>vivaldi</option><option>chromium</option><option>safari</option>
+          </select></label>
+        <label class="field"><span>Cookies 檔案</span><input name="cookies_file" type="text" class="mono" placeholder="cookies.txt 路徑"></label>
+        <label class="field"><span>代理伺服器</span><input name="proxy" type="text" class="mono" placeholder="http://127.0.0.1:7890"></label>
+        <label class="field"><span>User-Agent</span><input name="user_agent" type="text" class="mono" placeholder="預設"></label>
+      </div>
+      <p class="foot-note">設定會自動儲存 <span id="settings-status"></span></p>
+    </form>
+  </section>
+
+  <!-- ================= 環境 ================= -->
+  <section id="tab-doctor" class="panel">
+    <div class="section-head">
+      <div class="section-title">相依工具</div>
+      <div class="section-actions">
+        <button class="tbtn" id="btn-refresh-doctor"><i data-icon="refresh"></i>重新檢查</button>
+        <button class="tbtn" id="btn-update-ytdlp"><i data-icon="refresh"></i>更新 yt-dlp</button>
+        <button class="pbtn" id="btn-install-tools"><i data-icon="download"></i>自動安裝工具</button>
+      </div>
+    </div>
+    <div class="list" id="doctor"></div>
+    <p class="foot-note" id="tool-message"></p>
+    <p class="foot-note">網站改版造成下載失敗時，通常更新 yt-dlp 就能解決。</p>
+  </section>
+</main>
+
+<dialog id="log-dialog">
+  <div class="dialog-head"><span id="log-title"></span><button class="ibtn sm" data-close><i data-icon="x"></i></button></div>
+  <pre id="log-body"></pre>
+</dialog>
+
+<div id="toasts"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
