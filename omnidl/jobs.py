@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+import gc
 import json
 import os
 import threading
@@ -251,6 +252,7 @@ class JobManager:
         eng = Engine(self._settings_for(job), log=log, on_progress=on_progress, on_stage=on_stage,
                      control=job.control, temp_key=job.id)
         o = job.options
+        stopped = None  # 'pause' | 'cancel'
         try:
             res = eng.download(job.url, format_id=o.get('format_id'), sniff_url=o.get('sniff_url'),
                                playlist_items=o.get('playlist_items'), title=job.title)
@@ -262,17 +264,21 @@ class JobManager:
             job.progress.update({'percent': 100.0, 'speed': None, 'eta': 0})
             self._add_history(job)
         except DownloadCancelled:
-            if job.control.stop_reason == 'cancel':
-                eng.cleanup_partials()
-                job.status = 'cancelled'
-            else:
-                job.status = 'paused'
-            job.stage = ''
+            stopped = job.control.stop_reason or 'pause'
         except Exception as e:  # noqa: BLE001
             job.status, job.stage = 'error', ''
             job.error = friendly_error(str(e))
             log('error', traceback.format_exc(limit=3))
         finally:
+            # 中斷的下載會讓 .part 檔的檔案物件卡在循環參照裡沒被關閉；
+            # Windows 上開著的檔案無法改名或刪除，續傳完成時會出現 WinError 32。
+            # 離開 except 區塊後強制回收，確保檔案控制代碼全部釋放。
+            gc.collect()
+            if stopped == 'cancel':
+                eng.cleanup_partials()
+                job.status, job.stage = 'cancelled', ''
+            elif stopped:
+                job.status, job.stage = 'paused', ''
             self._changed(job)
             self._pump()
 

@@ -21,6 +21,22 @@ def app_client(omnidl_home, tmp_path):
     return client, manager, store
 
 
+def open_files_under(path):
+    """列出本程序開著、位於 path 底下的檔案（Linux 用 /proc；其他平台回傳 None 表示無法檢查）。"""
+    import os
+    if not os.path.isdir('/proc/self/fd'):
+        return None
+    out = []
+    for fd in os.listdir('/proc/self/fd'):
+        try:
+            target = os.readlink(f'/proc/self/fd/{fd}')
+        except OSError:
+            continue
+        if target.startswith(path):
+            out.append(target)
+    return out
+
+
 def describe(job):
     """失敗時印出錯誤與最後幾行紀錄（pytest 預設會截斷 dict）。"""
     tail = '\n'.join(f"[{x['level']}] {x['msg']}" for x in list(job.log)[-25:])
@@ -92,6 +108,9 @@ def test_pause_resume_cancel(app_client, fake_site):
         client.post(f'/api/jobs/{job_id}/pause')
         job = wait_for(manager, job_id, ('paused', 'finished', 'error'))
         assert job.status == 'paused', describe(job)
+        # 暫停後不能有任何 .part 檔仍被開著，否則 Windows 續傳完成時無法改名 (WinError 32)
+        leaked = open_files_under(store.get().download_dir)
+        assert not leaked, leaked
         fake_site['handler'].delay = 0
         client.post(f'/api/jobs/{job_id}/resume')
         job = wait_for(manager, job_id, ('finished', 'error'))
