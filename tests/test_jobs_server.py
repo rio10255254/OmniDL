@@ -21,6 +21,12 @@ def app_client(omnidl_home, tmp_path):
     return client, manager, store
 
 
+def describe(job):
+    """失敗時印出錯誤與最後幾行紀錄（pytest 預設會截斷 dict）。"""
+    tail = '\n'.join(f"[{x['level']}] {x['msg']}" for x in list(job.log)[-25:])
+    return f'status={job.status} error={job.error!r}\n{tail}'
+
+
 def wait_for(manager, job_id, statuses, timeout=60):
     end = time.time() + timeout
     while time.time() < end:
@@ -59,7 +65,7 @@ def test_job_lifecycle(app_client, fake_site):
     r = client.post('/api/jobs', json={'urls': [fake_site['page']], 'options': {'quality': '720'}})
     job_id = r.json()['jobs'][0]['id']
     job = wait_for(manager, job_id, ('finished', 'error'))
-    assert job.status == 'finished', job.snapshot(with_log=True)
+    assert job.status == 'finished', describe(job)
     assert job.via == 'sniff' and job.files[0].endswith('.mp4')
     hist = client.get('/api/history').json()
     assert hist[0]['id'] == job_id
@@ -67,7 +73,7 @@ def test_job_lifecycle(app_client, fake_site):
     r = client.post('/api/jobs', json={'url': fake_site['page'], 'title': '自訂標題',
                                        'options': {'sniff_url': fake_site['base'] + '/hls/master.m3u8', 'quality': 'audio'}})
     job2 = wait_for(manager, r.json()['jobs'][0]['id'], ('finished', 'error'))
-    assert job2.status == 'finished' and '自訂標題' in job2.files[0], job2.snapshot(with_log=True)
+    assert job2.status == 'finished' and '自訂標題' in job2.files[0], describe(job2)
     log = client.get(f'/api/jobs/{job_id}/log').json()['log']
     assert any('[repair]' in line['msg'] for line in log)
 
@@ -85,11 +91,11 @@ def test_pause_resume_cancel(app_client, fake_site):
             time.sleep(0.05)
         client.post(f'/api/jobs/{job_id}/pause')
         job = wait_for(manager, job_id, ('paused', 'finished', 'error'))
-        assert job.status == 'paused', job.snapshot(with_log=True)
+        assert job.status == 'paused', describe(job)
         fake_site['handler'].delay = 0
         client.post(f'/api/jobs/{job_id}/resume')
         job = wait_for(manager, job_id, ('finished', 'error'))
-        assert job.status == 'finished', job.snapshot(with_log=True)
+        assert job.status == 'finished', describe(job)
 
         fake_site['handler'].delay = 0.4
         store.update({'download_dir': store.get().download_dir + '2'})
@@ -119,6 +125,6 @@ def test_same_video_two_formats_concurrently(app_client, fake_site):
         ja, jb = wait_for(manager, a, ('finished', 'error')), wait_for(manager, b, ('finished', 'error'))
     finally:
         fake_site['handler'].delay = 0
-    assert ja.status == 'finished' and jb.status == 'finished', (ja.snapshot(True), jb.snapshot(True))
+    assert ja.status == 'finished' and jb.status == 'finished', describe(ja) + describe(jb)
     names = sorted(os.listdir(store.get().download_dir))
     assert [n.rsplit('.', 1)[1] for n in names] == ['mp3', 'mp4'], names  # 暫存資料夾也已清除
