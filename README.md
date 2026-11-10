@@ -187,10 +187,10 @@ pytest -q
 
 測試會在本機架一個「模擬網站」：影片網址藏在 p,a,c,k,e,d 混淆 JS 裡、有兩種畫質的 Master Playlist、每個片段偽裝成 `.jpg` 並塞了真的 PNG 檔頭、m3u8 需要 Referer 才能讀取——完整驗證 嗅探 → 選畫質 → 下載 → 修復 → 合併 的流程，以及暫停 / 續傳 / 取消、aria2c、僅音訊等功能。
 
-推送 `v*` 標籤會由 GitHub Actions 自動打包 Windows exe 並發布到 Releases：
+**自動發布：** 把 `omnidl/__init__.py` 的 `__version__` 改成新版本並推到 `main`，GitHub Actions 就會自動打包 Windows exe、建立 `v<版本號>` 標籤並發布到 Releases（同一版本只會發布一次）。
 
-```bash
-git tag v1.0.0 && git push origin v1.0.0
+```python
+__version__ = '1.1.0'
 ```
 
 ```
