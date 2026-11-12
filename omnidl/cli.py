@@ -22,7 +22,7 @@ import webbrowser
 from . import __version__, tools
 from .config import ARIA2_MODES, AUDIO_FORMATS, BROWSERS, QUALITY_CHOICES, SNIFF_MODES, SettingsStore
 
-COMMANDS = ('gui', 'get', 'info', 'sniff', 'doctor', 'install-tools', 'update')
+COMMANDS = ('gui', 'get', 'info', 'sniff', 'doctor', 'install-tools', 'update', 'selftest')
 
 
 def _human(n):
@@ -229,6 +229,7 @@ def _free_port(preferred: int) -> int:
 def cmd_gui(args) -> int:
     import uvicorn
 
+    from . import desktop
     from .server import create_app
 
     store = SettingsStore()
@@ -246,37 +247,55 @@ def cmd_gui(args) -> int:
     server = uvicorn.Server(config)
     server_ref['server'] = server
 
-    want_window = args.window or (getattr(sys, 'frozen', False) and not args.browser)
-    webview = None
-    if want_window:
-        try:
-            import webview  # type: ignore
-        except Exception:  # noqa: BLE001
-            webview = None
+    # 伺服器一律在背景執行緒啟動，介面用哪一種方式開都不影響它
+    t = threading.Thread(target=server.run, daemon=True, name='omnidl-server')
+    t.start()
+    for _ in range(200):
+        if server.started or not t.is_alive():
+            break
+        time.sleep(0.05)
+    if not server.started:
+        desktop.log_error(f'介面伺服器無法啟動 (port {port})')
+        print(f'✘ 介面伺服器無法啟動 (port {port})', file=sys.stderr)
+        return 1
 
-    if webview:
-        t = threading.Thread(target=server.run, daemon=True)
-        t.start()
-        for _ in range(100):
-            if server.started:
-                break
-            time.sleep(0.05)
-        webview.create_window('OmniDL 萬用影片下載器', url, width=1180, height=820, min_size=(760, 560))
-        webview.start()
-        server.should_exit = True
+    def shutdown() -> int:
         app.state.manager.pause_all()
+        server.should_exit = True
+        t.join(timeout=5)
         return 0
 
+    want_window = args.window or (desktop.FROZEN and not args.browser)
+    if want_window:
+        # 第 1 層：pywebview 獨立視窗
+        if desktop.try_webview(url, 'OmniDL 萬用影片下載器'):
+            return shutdown()
+        # 第 2 層：Edge / Chrome 應用程式模式（沒有網址列的獨立視窗）
+        proc = desktop.open_app_window(url)
+        if proc is not None:
+            started = time.monotonic()
+            while proc.poll() is None and not server.should_exit:
+                time.sleep(0.3)
+            # 很快就結束代表瀏覽器把視窗交給了已開啟的程序，改成等伺服器結束
+            if proc.poll() is not None and time.monotonic() - started > 5:
+                return shutdown()
+
+    # 第 3 層：預設瀏覽器
     print(f'OmniDL {__version__} 已啟動：{url}')
-    print('關閉此視窗或按 Ctrl+C 即可結束程式。')
-    if not args.no_browser:
-        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    print('在介面按「結束程式」，或在這裡按 Ctrl+C 即可結束。')
+    if not args.no_browser and not (want_window and server.should_exit):
+        webbrowser.open(url)
     try:
-        server.run()
+        while not server.should_exit and t.is_alive():
+            time.sleep(0.3)
     except KeyboardInterrupt:
         pass
-    app.state.manager.pause_all()
-    return 0
+    return shutdown()
+
+
+def cmd_selftest(args) -> int:
+    from . import desktop
+    return desktop.selftest(unblock=not args.no_unblock, report=args.report)
 
 
 # ---------------------------------------------------------------- main
@@ -324,6 +343,9 @@ def build_parser():
     sub.add_parser('doctor', help='檢查相依工具')
     sub.add_parser('install-tools', help='(Windows) 下載 FFmpeg 與 aria2c')
     sub.add_parser('update', help='更新 yt-dlp')
+    st = sub.add_parser('selftest', help=argparse.SUPPRESS)
+    st.add_argument('--no-unblock', action='store_true')
+    st.add_argument('--report')
     return p
 
 
@@ -338,6 +360,6 @@ def main(argv=None) -> int:
         args = build_parser().parse_args(['gui', *argv])
     handler = {
         'gui': cmd_gui, 'get': cmd_get, 'info': cmd_info, 'sniff': cmd_sniff, 'doctor': cmd_doctor,
-        'install-tools': cmd_install_tools, 'update': cmd_update,
+        'install-tools': cmd_install_tools, 'update': cmd_update, 'selftest': cmd_selftest,
     }[args.cmd]
     return handler(args) or 0

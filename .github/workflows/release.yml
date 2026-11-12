@@ -87,6 +87,21 @@ jobs:
           $env:OMNIDL_HOME = "$env:RUNNER_TEMP\omnidl-home"
           $p = Start-Process dist\OmniDL\OmniDL.exe -ArgumentList '--version' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "OmniDL.exe --version 失敗 (exit $($p.ExitCode))" }
+      - name: Desktop window self-test (simulate files downloaded from the internet)
+        shell: pwsh
+        run: |
+          $env:OMNIDL_HOME = "$env:RUNNER_TEMP\omnidl-home"
+          # 模擬從瀏覽器下載 zip 後解壓：替所有檔案加上網路下載標記 (ZoneId=3)
+          Get-ChildItem dist\OmniDL -Recurse -File | ForEach-Object {
+            Set-Content -LiteralPath $_.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+          }
+          # 1) 不解除封鎖：預期重現 pythonnet 載入失敗（僅供診斷，不影響結果）
+          $a = Start-Process dist\OmniDL\OmniDL.exe -ArgumentList 'selftest','--no-unblock','--report',"$env:RUNNER_TEMP\no-unblock.json" -Wait -PassThru
+          Write-Host "== 不解除封鎖 (exit $($a.ExitCode)) =="; Get-Content "$env:RUNNER_TEMP\no-unblock.json"
+          # 2) 程式自動解除封鎖：必須成功載入 .NET
+          $b = Start-Process dist\OmniDL\OmniDL.exe -ArgumentList 'selftest','--report',"$env:RUNNER_TEMP\unblock.json" -Wait -PassThru
+          Write-Host "== 自動解除封鎖 (exit $($b.ExitCode)) =="; Get-Content "$env:RUNNER_TEMP\unblock.json"
+          if ($b.ExitCode -ne 0) { throw "自動解除封鎖後仍無法載入 pythonnet" }
       - name: Zip
         run: Compress-Archive -Path dist\OmniDL\* -DestinationPath OmniDL-windows-x64.zip
       - uses: actions/upload-artifact@v4
